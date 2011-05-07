@@ -2,7 +2,8 @@
 
 ;; Copyright (C) 2010 myfreeweb
 
-;; Author: myfreeweb <me@myfreeweb.ru>
+;; Author: myfreeweb <me@myfreeweb.ru>,
+;;         Jeremiah Dodds <jeremiah.dodds@gmail.com>
 ;; Keywords: tools
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -27,44 +28,63 @@
 (require 'ido)
 (require 'vc nil t) ; optional
 
-(defvar projects-dir "~/")
+;(defvar projects-dir "~/")
+(defvar projects-root "~/workspace")
 
-(defvar project-starters
-  (make-hash-table :test 'equal))
+(defvar project-starters '())
 
 (defvar vc-systems
-  '("bzr" "hg" "git" "none"))
+  '("bzr" "hg" "git" "svn" "none"))
+
+(defvar vc-init-commands-alist '())
+
+;; XXX temp until proper custom setup
+(dolist (system '("bzr" "hg" "git" "svn")) 
+  (aput 'vc-init-commands-alist system "init"))
 
 (defvar sp-open-vc-dir t) ; maybe some users think it's annoying.
 
-(puthash "anything" "mkdir" project-starters)
-(puthash "django" "django-admin.py startproject" project-starters)
-(puthash "pylons" "paster create -t pylons" project-starters)
-(puthash "rails" "rails" project-starters)
-(puthash "catalyst" "catalyst.pl" project-starters)
-(puthash "sproutcore" "sc-init" project-starters)
+(defun add-to-project-start (project-type command)
+  "Add a command to the list that will be run when starting a project-type
+project"
+  (let ((current-commands (aget project-starters project-type t)))
+    (if current-commands
+	(append current-commands command)
+      (setq current-commands (list command)))
+    (aput 'project-starters project-type current-commands)))
 
-(defun really-start-project (type vcs name)
-  (shell-command (concat "cd " projects-dir " && "
-                         (gethash type project-starters) " " name))
-  (if (equal vcs "none")
-      () ; this is "else", lol. Lisp <3
-      (shell-command (concat "cd " projects-dir "/" name " && " vcs " init")))
-  (dired (concat projects-dir name))
-  (if (equal sp-open-vc-dir t)
-      (vc-dir (concat projects-dir name))))
+(defun add-commands (project-type &rest commands)
+  "Add multiple commands to the list that will be run when starting a project-type project"
+  (let ((project-add-command (apply-partially 'add-to-project-start project-type)))
+    (dolist (command commands)
+      (funcall project-add-command command))))
 
-(defun get-hash-keys (hashtable)
-  (let (keys)
-    (maphash (lambda (k v) (setq keys (cons k keys))) hashtable)
-    keys))
+(add-commands "django" "django-admin.py startproject")
+(add-commands "pylons" "paster create -t pylons")
+(add-commands "rails" "rails")
+(add-commands "catalyst" "catalyst.pl")
+(add-commands "sproutcore" "sc-init")
+(add-commands "test" "echo 'whoo'")
+
+(defun really-start-project (project-type vcs project-name)
+  (let ((commands (aget project-starters project-type t))
+	(project-dir (expand-file-name project-name projects-root)))
+    (unless (file-exists-p project-dir)
+      (make-directory project-dir))
+    (let ((default-directory project-dir))
+      (dolist (command commands)
+	(shell-command command))
+      (shell-command (combine-and-quote-strings (list vcs (aget vc-init-commands-alist vcs t))))
+      (dired default-directory)
+      (if sp-open-vc-dir
+	  (vc-dir default-directory)))))
 
 (defun start-project (name)
   "Start a new project"
-  (interactive "sName: ")
+  (interactive "sProject Name: ")
   (really-start-project (ido-completing-read
                          "Type: "
-                         (get-hash-keys project-starters)
+			 (mapcar (lambda (values) (car values)) project-starters)
                          nil 'require-match nil nil)
                         (ido-completing-read
                          "VCS: "
