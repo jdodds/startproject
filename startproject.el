@@ -74,7 +74,9 @@ project"
       (setq current-commands (list command)))
     (aput 'startproject-project-starters project-type current-commands)))
 
-(defun add-commands (project-type &rest commands)
+
+;;;###autoload
+(defun startproject-add-commands (project-type &rest commands)
   "Add multiple commands to the list that will be run when starting a
 project-type project"
   (let ((project-add-command
