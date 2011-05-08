@@ -28,69 +28,90 @@
 (require 'ido)
 (require 'vc nil t) ; optional
 
-;(defvar projects-dir "~/")
-(defvar projects-root "~/workspace")
+;;;###autoload
+(defgroup startproject nil
+  "Project starting toolkit"
+  :group 'tools)
 
-(defvar project-starters '())
+(defcustom startproject-projects-root "~/"
+  "The folder that contains your project folders"
+  :type 'directory
+  :group 'startproject)
 
-(defvar vc-systems
-  '("bzr" "hg" "git" "svn" "none"))
+(defcustom startproject-vc-systems  '("bzr" "hg" "git" "svn")
+  "List of available version control systems"
+  :type '(repeat string)
+  :group 'startproject)
 
-(defvar vc-init-commands-alist '())
+(defcustom startproject-vc-init-commands-alist
+  '(("bzr" . "init") ("hg" . "init") ("git" . "init") ("svn" . "init"))
+  "An alist mapping vcs names to their init-repository commands"
+  :type '(alist :value-type string)
+  :group 'startproject)
 
-;; XXX temp until proper custom setup
-(dolist (system '("bzr" "hg" "git" "svn")) 
-  (aput 'vc-init-commands-alist system "init"))
+(defcustom startproject-vc-open-dir t
+  "Whether or not to open the basedir of the projet with vc-open-dir"
+  :type 'boolean
+  :group 'startproject)
 
-(defvar sp-open-vc-dir t) ; maybe some users think it's annoying.
+(defcustom startproject-project-starters
+  '(("django" . ("django-admin.py startproject"))
+    ("pylons" . ("paster create -t pylons"))
+    ("rails" . ("rails"))
+    ("catalyst" . ("catalyst.pl"))
+    ("sproutcore" . ("sc-init")))
+  "An alist mapping project types to the list of commands that should be run to
+initialize this type of project"
+  :type '(alist :value-type (repeat string))
+  :group 'startproject)
 
 (defun add-to-project-start (project-type command)
   "Add a command to the list that will be run when starting a project-type
 project"
-  (let ((current-commands (aget project-starters project-type t)))
+  (let ((current-commands (aget startproject-project-starters project-type t)))
     (if current-commands
 	(append current-commands command)
       (setq current-commands (list command)))
-    (aput 'project-starters project-type current-commands)))
+    (aput 'startproject-project-starters project-type current-commands)))
 
 (defun add-commands (project-type &rest commands)
-  "Add multiple commands to the list that will be run when starting a project-type project"
-  (let ((project-add-command (apply-partially 'add-to-project-start project-type)))
+  "Add multiple commands to the list that will be run when starting a
+project-type project"
+  (let ((project-add-command
+	 (apply-partially 'add-to-project-start project-type)))
     (dolist (command commands)
       (funcall project-add-command command))))
 
-(add-commands "django" "django-admin.py startproject")
-(add-commands "pylons" "paster create -t pylons")
-(add-commands "rails" "rails")
-(add-commands "catalyst" "catalyst.pl")
-(add-commands "sproutcore" "sc-init")
-(add-commands "test" "echo 'whoo'")
-
 (defun really-start-project (project-type vcs project-name)
-  (let ((commands (aget project-starters project-type t))
-	(project-dir (expand-file-name project-name projects-root)))
+  (let ((commands (aget startproject-project-starters project-type t))
+	(project-dir
+	 (expand-file-name project-name startproject-projects-root)))
     (unless (file-exists-p project-dir)
       (make-directory project-dir))
     (let ((default-directory project-dir))
+      (cd project-dir)
       (dolist (command commands)
 	(shell-command command))
-      (shell-command (combine-and-quote-strings (list vcs (aget vc-init-commands-alist vcs t))))
+      (shell-command
+       (combine-and-quote-strings
+	(list vcs (aget startproject-vc-init-commands-alist vcs t))))
       (dired default-directory)
-      (if sp-open-vc-dir
+      (if startproject-vc-open-dir
 	  (vc-dir default-directory)))))
 
-(defun start-project (name)
+;;;###autoload
+(defun startproject (name)
   "Start a new project"
   (interactive "sProject Name: ")
   (really-start-project (ido-completing-read
-                         "Type: "
-			 (mapcar (lambda (values) (car values)) project-starters)
-                         nil 'require-match nil nil)
-                        (ido-completing-read
-                         "VCS: "
-                         vc-systems
-                         nil 'require-match nil nil)
-                        name))
+			 "Type: "
+			 (mapcar (lambda (values) (car values))
+				 startproject-project-starters)
+			 nil 'require-match nil nil)
+			(ido-completing-read
+			 "VCS: "
+			 startproject-vc-systems
+			 nil 'require-match nil nil)
+			name))
 
-(provide 'startproject)
 ;;; startproject.el ends here
