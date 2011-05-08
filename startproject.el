@@ -70,7 +70,7 @@ initialize this type of project"
 project"
   (let ((current-commands (aget startproject-project-starters project-type t)))
     (if current-commands
-	(append current-commands command)
+	(add-to-list 'current-commands command t)
       (setq current-commands (list command)))
     (aput 'startproject-project-starters project-type current-commands)))
 
