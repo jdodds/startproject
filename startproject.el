@@ -115,5 +115,5 @@ project-type project"
 			 startproject-vc-systems
 			 nil 'require-match nil nil)
 			name))
-
+(provide 'startproject)
 ;;; startproject.el ends here
